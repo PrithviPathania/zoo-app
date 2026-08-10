@@ -1,18 +1,69 @@
-// ============================================================================
-// components/Navbar.tsx   →   the bar across the top of every page
-// ============================================================================
-// This one is deliberately simple: it just shows the app's name. All the
-// login logic lives in app/page.tsx, so the navbar has nothing to think about.
-// ----------------------------------------------------------------------------
+'use client';
 
-export default function Navbar() {
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from './AuthProvider';
+
+export default function NavBar() {
+  const { user, isLoading, signOut } = useAuth();
+  const pathname = usePathname();
+
   return (
-    <header className="bg-red-500 border-b border-gray-200 px-6 py-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900">Calgary Zoo</h1>
-        <p className="text-xs text-black-400">Login Page</p>
+    <nav className="bg-[#c41e1b] text-white shadow-lg sticky top-0 z-40">
+      <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        {/* Logo / Brand */}
+        <Link href="/" className="flex items-center space-x-2 hover:opacity-90 transition">
+          <span className="text-xl font-extrabold tracking-wide">Calgary Zoo Explorer</span>
+        </Link>
+
+        {/* Navigation */}
+        <div className="flex items-center space-x-6 font-medium">
+          <Link
+            href="/"
+            className={`hover:text-red-200 transition ${pathname === '/' ? 'border-b-2 border-white font-bold' : ''}`}
+          >
+            Home
+          </Link>
+          <Link
+            href="/gallery"
+            className={`hover:text-red-200 transition ${pathname === '/gallery' ? 'border-b-2 border-white font-bold' : ''}`}
+          >
+            Animal Gallery
+          </Link>
+
+          {/* Auth-dependent items */}
+          {!isLoading && (
+            <>
+              {user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    className={`hover:text-red-200 transition ${pathname === '/profile' ? 'border-b-2 border-white font-bold' : ''}`}
+                  >
+                    Profile
+                  </Link>
+                  <span className="text-red-200 text-sm hidden md:inline">
+                    {user.email}
+                  </span>
+                  <button
+                    onClick={signOut}
+                    className="ml-2 px-4 py-1.5 rounded-full border-2 border-white hover:bg-white hover:text-[#c41e1b] transition font-semibold"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  className="ml-4 px-4 py-1.5 rounded-full border-2 border-white hover:bg-white hover:text-[#c41e1b] transition font-semibold"
+                >
+                  Login
+                </Link>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </header>
+    </nav>
   );
 }
- 
