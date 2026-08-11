@@ -20,9 +20,9 @@ import type { Animal } from '@/lib/animals';
 type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; animal: Animal };
 
 export default function AdminPage() {
-  const { user, isLoading: isAuthLoading } = useAuth();
+  // role comes from AuthProvider, which fetches it once for the whole app.
+  const { user, role, isLoading: isAuthLoading } = useAuth();
 
-  const [role, setRole] = useState<'user' | 'admin' | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [error, setError] = useState('');
@@ -36,9 +36,10 @@ export default function AdminPage() {
     setAnimals(data.animals);
   }, []);
 
-  // --- Resolve the caller's role, then load the list if they are an admin ---
+  // --- Load the animal list once the caller is known to be an administrator ---
   useEffect(() => {
-    if (isAuthLoading) return;
+    // Wait until both the session and the role have resolved.
+    if (isAuthLoading || (user && role === null)) return;
     let cancelled = false;
 
     async function load() {
@@ -46,17 +47,7 @@ export default function AdminPage() {
       setError('');
 
       try {
-        const profileResponse = await fetch('/api/profile');
-        if (!profileResponse.ok) {
-          if (!cancelled) setRole(null);
-          return;
-        }
-
-        const profile: { role: 'user' | 'admin' } = await profileResponse.json();
-        if (cancelled) return;
-
-        setRole(profile.role);
-        if (profile.role === 'admin') await loadAnimals();
+        if (role === 'admin') await loadAnimals();
       } catch {
         if (!cancelled) setError('Could not load the dashboard. Please refresh to try again.');
       } finally {
@@ -69,7 +60,7 @@ export default function AdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthLoading, user, loadAnimals]);
+  }, [isAuthLoading, user, role, loadAnimals]);
 
   /** Surface the server's own message so a 403 is shown to the user verbatim. */
   async function describeFailure(response: Response): Promise<string> {

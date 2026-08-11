@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 
 export default function NavBar() {
-  const { user, isLoading, signOut } = useAuth();
+  const { user, role, isLoading, signOut } = useAuth();
   const pathname = usePathname();
 
   return (
@@ -42,6 +42,17 @@ export default function NavBar() {
                   >
                     Profile
                   </Link>
+
+                  {/* Administrator-only link. The /admin page and the API both
+                      re-check the role, so hiding it here is convenience, not security. */}
+                  {role === 'admin' && (
+                    <Link
+                      href="/admin"
+                      className={`hover:text-red-200 transition ${pathname === '/admin' ? 'border-b-2 border-white font-bold' : ''}`}
+                    >
+                      Manage Animals
+                    </Link>
+                  )}
                   <span className="text-red-200 text-sm hidden md:inline">
                     {user.email}
                   </span>
