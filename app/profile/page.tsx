@@ -3,18 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../components/AuthProvider';
-import { useProfile } from '../components/ProfileProvider';
-import { zooAnimals } from '@/lib/animals';
 import type { Animal } from '@/lib/animals';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const { getFavourite, setFavourite } = useProfile();
 
+  const [animals, setAnimals] = useState<Animal[]>([]);
   const [selectedAnimalId, setSelectedAnimalId] = useState<string>('');
   const [savedAnimal, setSavedAnimal] = useState<Animal | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   // Protect page — redirect if not logged in
   useEffect(() => {
@@ -23,26 +22,68 @@ export default function ProfilePage() {
     }
   }, [user, isLoading, router]);
 
-  // Load saved favourite on mount (when user is available)
+  // Load the animal list and this user's stored favourite together.
   useEffect(() => {
-    if (user) {
-      const favId = getFavourite(user.id);
-      if (favId) {
-        const animal = zooAnimals.find((a) => a.id === favId) ?? null;
-        setSavedAnimal(animal);
-        setSelectedAnimalId(favId);
+    if (!user) return;
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const [animalsResponse, profileResponse] = await Promise.all([
+          fetch('/api/animals'),
+          fetch('/api/profile'),
+        ]);
+        if (!animalsResponse.ok || !profileResponse.ok) throw new Error('Request failed');
+
+        const animalsData: { animals: Animal[] } = await animalsResponse.json();
+        const profileData: { favouriteAnimalId: string | null } = await profileResponse.json();
+        if (cancelled) return;
+
+        setAnimals(animalsData.animals);
+
+        if (profileData.favouriteAnimalId) {
+          setSelectedAnimalId(profileData.favouriteAnimalId);
+          setSavedAnimal(
+            animalsData.animals.find((a) => a.id === profileData.favouriteAnimalId) ?? null,
+          );
+        }
+      } catch {
+        if (!cancelled) setSaveError('Could not load your profile. Please refresh to try again.');
       }
     }
-  }, [user, getFavourite]);
 
-  function handleSave() {
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Persist the chosen favourite to the database so it survives a refresh.
+  async function handleSave() {
     if (!user || !selectedAnimalId) return;
 
-    setFavourite(user.id, selectedAnimalId);
-    const animal = zooAnimals.find((a) => a.id === selectedAnimalId) ?? null;
-    setSavedAnimal(animal);
-    setSaveMessage('Favourite animal saved!');
-    setTimeout(() => setSaveMessage(''), 3000);
+    setSaveError('');
+    setSaveMessage('');
+
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favouriteAnimalId: selectedAnimalId }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Could not save your favourite animal.');
+      }
+
+      setSavedAnimal(animals.find((a) => a.id === selectedAnimalId) ?? null);
+      setSaveMessage('Favourite animal saved!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save. Please try again.');
+    }
   }
 
   // Loading state
@@ -74,7 +115,7 @@ export default function ProfilePage() {
             className="flex-1 p-3 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-gray-400 outline-none font-medium"
           >
             <option value="">Select an animal...</option>
-            {zooAnimals.map((animal) => (
+            {animals.map((animal) => (
               <option key={animal.id} value={animal.id}>
                 {animal.name} — {animal.species}
               </option>
@@ -94,6 +135,13 @@ export default function ProfilePage() {
         {saveMessage && (
           <p className="mt-3 text-sm text-gray-700 bg-gray-100 rounded-lg p-2.5 text-center font-medium">
             ✓ {saveMessage}
+          </p>
+        )}
+
+        {/* Error message */}
+        {saveError && (
+          <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-2.5 text-center font-medium">
+            {saveError}
           </p>
         )}
       </div>

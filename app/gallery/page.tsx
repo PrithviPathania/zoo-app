@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { zooAnimals } from '@/lib/animals';
 import type { Animal } from '@/lib/animals';
 import AnimalCard from '../components/AnimalCard';
 import AnimalProfileModal from '../components/AnimalProfileModal';
@@ -12,19 +11,39 @@ export default function GalleryPage() {
   const [selectedHabitat, setSelectedHabitat] = useState<string>('All');
   const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string>('');
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 3;
 
+  // Load the animals from the REST API once, when the page mounts.
   useEffect(() => {
-    // Simulating loading static data state
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setAnimals(zooAnimals);
-      setIsLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+
+    async function loadAnimals() {
+      setIsLoading(true);
+      setLoadError('');
+
+      try {
+        const response = await fetch('/api/animals');
+        if (!response.ok) throw new Error('Request failed');
+
+        const data: { animals: Animal[] } = await response.json();
+        if (!cancelled) setAnimals(data.animals);
+      } catch {
+        if (!cancelled) setLoadError('Could not load animals. Please refresh to try again.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    loadAnimals();
+
+    // Guards against setting state after the component has unmounted.
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Filter & Search Logic
@@ -81,6 +100,10 @@ export default function GalleryPage() {
       {/* Loading state or Gallery Grid */}
       {isLoading ? (
         <p className="text-center text-gray-700 font-semibold py-12">Loading Calgary Zoo Animals...</p>
+      ) : loadError ? (
+        <p className="text-center text-red-700 bg-red-50 border border-red-200 rounded-lg py-6 px-4 font-medium">
+          {loadError}
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
