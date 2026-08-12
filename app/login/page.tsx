@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/AuthProvider';
@@ -8,6 +8,13 @@ import { useAuth } from '../components/AuthProvider';
 export default function LoginPage() {
   const router = useRouter();
   const { user } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   // If already logged in, redirect home
   useEffect(() => {
@@ -23,13 +30,127 @@ export default function LoginPage() {
     });
   }
 
+  async function handleEmailAuth(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+          },
+        });
+        
+        if (signUpError) throw signUpError;
+        
+        setMessage('Success! Please check your email to confirm your account.');
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) throw signInError;
+        // On success, the AuthProvider will detect the session change and redirect will trigger
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="max-w-md mx-auto px-6 py-16">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Login or Sign Up</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">
+        {isSignUp ? 'Create an Account' : 'Login'}
+      </h2>
+
+      {message && (
+        <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-md text-sm">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-md text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Email / Password Form */}
+      <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400"
+            placeholder="you@example.com"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400"
+            placeholder="••••••••"
+          />
+        </div>
+        
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-gray-800 text-white font-semibold py-3 rounded-md hover:bg-gray-900 transition disabled:opacity-50"
+        >
+          {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+        </button>
+      </form>
+
+      <div className="text-center mb-6 text-sm text-gray-600">
+        {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp(!isSignUp);
+            setError('');
+            setMessage('');
+          }}
+          className="text-[#c41e1b] font-medium hover:underline"
+        >
+          {isSignUp ? 'Sign In' : 'Sign Up'}
+        </button>
+      </div>
+
+      <div className="relative mb-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-300"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+        </div>
+      </div>
 
       {/* OAuth Providers */}
       <div className="space-y-3">
         <button
+          type="button"
           onClick={() => signInWith('google')}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 transition"
         >
@@ -38,6 +159,7 @@ export default function LoginPage() {
         </button>
 
         <button
+          type="button"
           onClick={() => signInWith('github')}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 transition"
         >
